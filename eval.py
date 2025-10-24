@@ -101,16 +101,11 @@ for i, batch in tqdm(enumerate(dataloader)):
         preds.append(pred.cpu().numpy())
         gts.append(gt.cpu().numpy())
 
-    if i == 200:
-        break
-
+# === Compute RMSE ===
 rmse = correspondence_rmse(
     CoordDenorm(torch.tensor(np.concatenate(preds))), 
     CoordDenorm(torch.tensor(np.concatenate(gts)))
 )
 print(f"Correspondence RMSE: {rmse.item():.4f}")
-
-
-
 
 
