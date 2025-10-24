@@ -63,9 +63,9 @@ After saving the model weights in `demo/`, run `demo.ipynb` to visualize plan-ph
 Download [DUSt3R_ViTLarge_BaseDecoder_512_dpt.pth](https://github.com/naver/dust3r?tab=readme-ov-file#checkpoints).
 ```bash
 torchrun --nproc_per_node 8 train.py \
---train_dataset="C3(data_dir='/share/phoenix/nfs06/S9/kh775/code/wsfm/scripts/data/c3po/', image_dir='/share/phoenix/nfs06/S9/kh775/dataset/megascenes_augmented_exhaustive/', split='train', resolution=[(512, 512)], augmentation_factor=3)" \
---val_dataset="C3(data_dir='/share/phoenix/nfs06/S9/kh775/code/wsfm/scripts/data/c3po/', image_dir='/share/phoenix/nfs06/S9/kh775/dataset/megascenes_augmented_exhaustive/', split='val', resolution=[(512, 512)], augmentation_factor=1)" \
---test_dataset="C3(data_dir ='/share/phoenix/nfs06/S9/kh775/code/wsfm/scripts/data/c3po/', image_dir='/share/phoenix/nfs06/S9/kh775/dataset/megascenes_augmented_exhaustive/', split='test', resolution=[(512, 512)], augmentation_factor=1)" \
+--train_dataset="C3(data_dir='C3/geometric/', image_dir='C3/visual/', split='train', resolution=[(512, 512)], augmentation_factor=3)" \
+--val_dataset="C3(data_dir='C3/geometric/', image_dir='C3/visual/', split='val', resolution=[(512, 512)], augmentation_factor=1)" \
+--test_dataset="C3(data_dir ='C3/geometric/', image_dir='C3/visual/', split='test', resolution=[(512, 512)], augmentation_factor=1)" \
 --train_criterion="ConfLoss(CorrespondenceLoss(L21), alpha=0.2)" \
 --test_criterion="CorrespondenceLoss(L21)" \
 --model="AsymmetricCroCo3DStereo(pos_embed='RoPE100', patch_embed_cls='ManyAR_PatchEmbed', img_size=(512, 512), head_type='dpt', output_mode='pts3d', depth_mode=('exp', -inf, inf), conf_mode=('exp', 1, inf), enc_embed_dim=1024, enc_depth=24, enc_num_heads=16, dec_embed_dim=768, dec_depth=12, dec_num_heads=12)" \
@@ -77,8 +77,9 @@ torchrun --nproc_per_node 8 train.py \
 
 
 ## Evaluation
+Evaluate correspondence RMSE by running
 ```bash
-python c3po_inference.py
+python eval.py
 ```
 
 
