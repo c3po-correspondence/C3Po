@@ -89,7 +89,7 @@ python c3po_inference.py
       title={C3Po: Cross-View Cross-Modality Correspondence by Pointmap Prediction}, 
       author={Huang, Kuan Wei and Li, Brandon and Hariharan, Bharath and Snavely, Noah},
       booktitle={Advances in Neural Information Processing Systems},
-      volume={37},
+      volume={38},
       year={2025}
 }
 ```
