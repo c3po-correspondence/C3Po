@@ -1,9 +1,3 @@
-# Copyright (C) 2024-present Naver Corporation. All rights reserved.
-# Licensed under CC BY-NC-SA 4.0 (non-commercial use only).
-#
-# --------------------------------------------------------
-# utilities needed for the inference
-# --------------------------------------------------------
 import tqdm
 import torch
 from dust3r.utils.device import to_cpu, collate_with_cat
@@ -12,8 +6,7 @@ from dust3r.utils.geometry import depthmap_to_pts3d, geotrf
 
 import numpy as np
 from dust3r.datasets import get_data_loader
-from dust3r.utils.image import load_megascenes_augmented_images
-from dust3r.utils.viz import get_viz
+from dust3r.utils.image import load_images
 import PIL
 import matplotlib
 import os
@@ -105,78 +98,12 @@ def build_dataset(dataset, batch_size, num_workers, test=False):
     print(f"{split} dataset length: {len(loader)}")
     return loader
 
-def make_batches(plan_path, img_path, xys_path, batch_size):
-        plan_xys, image_xys = np.load(xys_path)
-        pair = load_megascenes_augmented_images((plan_path, img_path), size=512, plan_xys=plan_xys, image_xys=image_xys, augment=False)  
+def make_batches(plan_path, photo_path, corr_path, batch_size):
+        plan_corrs, photo_corrs = np.load(corr_path)
+        pair = load_images((plan_path, photo_path), size=512, plan_corrs=plan_corrs, photo_corrs=photo_corrs, augment=False)  
         batches = build_dataset([pair], batch_size, num_workers=4, test=True)
         return batches
 
-@torch.no_grad()
-def inference(model, test_criterion, device, epoch, output_dir, log_writer):
-    def get_inference_viz(batches, model, criterion, device):
-        viz_list = []
-        centroids_diff_list = []
-        for batch in batches:
-            output = loss_of_one_batch(batch, model=model, criterion=criterion, device=device, symmetrize_batch=False, use_amp=False, ret=None)
-            loss, loss_details = output["loss"]
-            loss_value = sum(loss_details.values())
-            viz, centroids_diff = get_viz(output["view1"], output["view2"], output["pred1"], output["pred2"], [loss_value])
-            viz_list.append(viz)
-            centroids_diff_list.append(centroids_diff)
-        return viz_list, centroids_diff_list
-    
-    pairs_path = "/share/phoenix/nfs06/S9/kh775/code/wsfm/scripts/data/keypoint_localization/data/intuitive_pairs.txt"
-    pairs_info = []
-    with open(pairs_path, 'r') as f:
-        for line in f.readlines():
-            line = line.strip().split(" /share")
-            pairs_info.append((line[0], "/share"+line[1], "/share"+line[2]))
-
-    npx_dir = "/share/phoenix/nfs06/S9/kh775/code/wsfm/scripts/data/keypoint_localization/data/data_test/coords"
-    fig_list = []
-    centroids_diff_list = []
-    for idx, (npx_num, plan_path, image_path) in enumerate(pairs_info):
-        npx_path = os.path.join(npx_dir, f"{int(npx_num):06}.npy")
-        batches = make_batches(plan_path, image_path, npx_path, batch_size=1)
-        viz, centroids_diff= get_inference_viz(batches, model, test_criterion, device)
-        fig_list.append(viz[0])
-        log_writer.add_scalar(f"intuitive_centroids_diff_{idx}", centroids_diff[0][0], epoch)
-        centroids_diff_list.append(centroids_diff[0][0])
-    log_writer.add_scalar("intuitive_centroids_diff", np.mean(centroids_diff_list), epoch)
-
-    pil_images = []
-    for fig in fig_list:
-        buf = io.BytesIO()
-        fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
-        buf.seek(0)
-        pil_images.append(PIL.Image.open(buf))
-
-    # Calculate dimensions
-    widths, heights = zip(*(img.size for img in pil_images))
-    max_width = max(widths)
-    total_height = sum(heights)
-
-    # Create a new image
-    stacked_image = PIL.Image.new('RGBA', (max_width, int(total_height * 1.5)))
-
-    # Paste images
-    y_offset = 0
-    for img in pil_images:
-        stacked_image.paste(img, (0, y_offset))
-        y_offset += img.height
-
-    # Save the result
-    os.makedirs(os.path.join(output_dir, "intuitive_pairs"), exist_ok=True)
-    
-    buffer = BytesIO()
-    stacked_image.save(buffer, format="PNG")
-    img_str = base64.b64encode(buffer.getvalue()).decode('utf-8')
-    output_html_path = os.path.join(output_dir, "intuitive_pairs", f"intuitive_pairs_epoch_{epoch}.html")
-    with open(output_html_path, 'w') as f:
-        f.write(f'<img src="data:image/png;base64,{img_str}">')
-
-def demo():
-    print("demo")
 
 def check_if_same_size(pairs):
     shapes1 = [img1['img'].shape[-2:] for img1, img2 in pairs]

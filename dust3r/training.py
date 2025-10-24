@@ -1,14 +1,3 @@
-# Copyright (C) 2024-present Naver Corporation. All rights reserved.
-# Licensed under CC BY-NC-SA 4.0 (non-commercial use only).
-#
-# --------------------------------------------------------
-# training code for DUSt3R
-# --------------------------------------------------------
-# References:
-# MAE: https://github.com/facebookresearch/mae
-# DeiT: https://github.com/facebookresearch/deit
-# BEiT: https://github.com/microsoft/unilm/tree/master/beit
-# --------------------------------------------------------
 import argparse
 import datetime
 import json
@@ -32,8 +21,7 @@ torch.backends.cuda.matmul.allow_tf32 = True  # for gpu >= Ampere and pytorch >=
 from dust3r.model import AsymmetricCroCo3DStereo, inf  # noqa: F401, needed when loading the model
 from dust3r.datasets import get_data_loader  # noqa
 from dust3r.losses import *  # noqa: F401, needed when loading the model
-from dust3r.inference import loss_of_one_batch, inference, build_dataset, losses_greater_than_x  # noqa
-from dust3r.utils.viz import get_viz, get_viz_html, get_cdf, get_centroid
+from dust3r.inference import loss_of_one_batch, build_dataset, losses_greater_than_x  # noqa
 
 import dust3r.utils.path_to_croco  # noqa: F401
 import croco.utils.misc as misc  # noqa
@@ -52,7 +40,7 @@ def set_seed(seed):
 set_seed(12)
 
 def get_args_parser():
-    parser = argparse.ArgumentParser('DUST3R training', add_help=False)
+    parser = argparse.ArgumentParser('C3Po training', add_help=False)
     # model and criterion
     parser.add_argument('--model', default="AsymmetricCroCo3DStereo(patch_embed_cls='ManyAR_PatchEmbed')",
                         type=str, help="string containing the model to build")
@@ -63,7 +51,7 @@ def get_args_parser():
 
     # dataset
     parser.add_argument('--train_dataset', required=True, type=str, help="training set")
-    parser.add_argument('--train_heldout_dataset', default='[None]', type=str, help="training heldout set")
+    parser.add_argument('--val_dataset', default='[None]', type=str, help="validation/training heldout set")
     parser.add_argument('--test_dataset', default='[None]', type=str, help="testing set")
 
 
@@ -141,8 +129,8 @@ def train(args):
     # training dataset and loader
     print('Building train dataset {:s}'.format(args.train_dataset))
     data_loader_train = build_dataset(args.train_dataset, args.train_batch_size, args.num_workers, test=False)
-    print('Building train_heldout dataset {:s}'.format(args.train_heldout_dataset))
-    data_loader_train_heldout = build_dataset(args.train_heldout_dataset, args.test_batch_size, args.num_workers, test=True)
+    print('Building val dataset {:s}'.format(args.val_dataset))
+    data_loader_val = build_dataset(args.val_dataset, args.test_batch_size, args.num_workers, test=True)
     print('Building test dataset {:s}'.format(args.test_dataset))
     data_loader_test = build_dataset(args.test_dataset, args.test_batch_size, args.num_workers, test=True)
 
@@ -183,15 +171,12 @@ def train(args):
     print(optimizer)
     loss_scaler = NativeScaler()
 
-    def write_log_stats(epoch, train_stats, train_heldout_stats, test_stats):
+    def write_log_stats(epoch, train_stats, test_stats):
         if misc.is_main_process():
             if log_writer is not None:
                 log_writer.flush()
 
             log_stats = dict(epoch=epoch, **{f'train_{k}': v for k, v in train_stats.items()})
-            with open(os.path.join(args.output_dir, "log.txt"), mode="a", encoding="utf-8") as f:
-                f.write(json.dumps(log_stats) + "\n")
-            log_stats = dict(epoch=epoch, **{f'train_heldout_{k}': v for k, v in train_heldout_stats.items()})
             with open(os.path.join(args.output_dir, "log.txt"), mode="a", encoding="utf-8") as f:
                 f.write(json.dumps(log_stats) + "\n")
             log_stats = dict(epoch=epoch, **{f'test_{k}': v for k, v in test_stats.items()})
@@ -230,14 +215,9 @@ def train(args):
             log_writer=log_writer,
             args=args)
 
-        # Test on multiple datasets
+        # Test
         new_best = False
-        # if (epoch > 0 and args.eval_freq > 0 and epoch % args.eval_freq == 0):
         if (args.eval_freq > 0 and epoch % args.eval_freq == 0):
-            # test_name = args.test_dataset.split("/")[-1]
-            # for test_name, testset in data_loader_test.items():
-            train_heldout_stats = test_one_epoch(model, test_criterion, data_loader_train_heldout,
-                                    device, epoch, log_writer=log_writer, args=args, prefix="train_heldout")
             test_stats = test_one_epoch(model, test_criterion, data_loader_test,
                                     device, epoch, log_writer=log_writer, args=args, prefix="test")
 
@@ -247,11 +227,7 @@ def train(args):
                 new_best = True
 
         # Save more stuff
-        write_log_stats(epoch, train_stats, train_heldout_stats, test_stats)
-
-        # Inference on the "intuitive" pairs
-        if log_writer is not None:
-            inference(model, test_criterion, device, epoch, args.output_dir, log_writer)
+        write_log_stats(epoch, train_stats, test_stats)
 
         if epoch >= args.start_epoch:
             if args.keep_freq and epoch % args.keep_freq == 0:
@@ -283,23 +259,6 @@ def save_final_model(args, epoch, model_without_ddp, best_so_far=None):
 
 def is_main_process():
     return torch.distributed.get_rank() == 0
-
-def aggregate(dict1, dict2):
-    if not dict1:
-        return {k: v.cpu() for k, v in dict2.items() if k != "instance"}
-    for key in dict1.keys():
-        if key == "instance":
-            continue
-        if key == "xys":
-            d1_xys_size = dict1[key].size(1)
-            d2_xys_size = dict2[key].size(1)
-            if d1_xys_size > d2_xys_size:
-                dict2[key] = F.pad(dict2[key], (0, 0, 0, d1_xys_size - d2_xys_size))
-            else:
-                dict1[key] = F.pad(dict1[key], (0, 0, 0, d2_xys_size - d1_xys_size))
-        dict1[key] = torch.cat((dict1[key].cpu(), dict2[key].cpu()), dim=0)
-
-    return dict1
 
 def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                     data_loader: Sized, optimizer: torch.optim.Optimizer,
@@ -356,7 +315,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         metric_logger.update(lr=lr)
         metric_logger.update(loss=loss_value, **loss_details)
 
-        if (data_iter_step + 1) % accum_iter == 0: # and ((data_iter_step + 1) % (accum_iter * args.print_freq)) == 0:
+        if (data_iter_step + 1) % accum_iter == 0: 
             loss_value_reduce = misc.all_reduce_mean(loss_value)  # MUST BE EXECUTED BY ALL NODES
             if log_writer is None:
                 continue
@@ -370,28 +329,6 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
             log_writer.add_scalar('train_iter', epoch_1000x, epoch_1000x)
             for name, val in loss_details.items():
                 log_writer.add_scalar('train_' + name, val, epoch_1000x)
-
-        # if data_iter_step == 0 and (epoch == 0 or (epoch + 1) % 10 == 0):
-        os.makedirs(os.path.join(args.output_dir, "train"), exist_ok=True)
-        if data_iter_step == 0:
-            # losses = []
-            view1s = dict()
-            view2s = dict()
-            pred1s = dict()
-            pred2s = dict()
-        if data_iter_step <= 127:
-            view1s = aggregate(view1s, result["view1"])
-            view2s = aggregate(view2s, result["view2"])
-            pred1s = aggregate(pred1s, result["pred1"])
-            pred2s = aggregate(pred2s, result["pred2"])
-        if data_iter_step == 127:
-            # centroid diff measures the distance between centroids of the predicted points and gt points
-            viz, centroids_diff = get_viz(view1s, view2s, pred1s, pred2s)
-            get_viz_html(viz, save_path=join(args.output_dir, "train", f"train_{epoch}.html"))
-            if log_writer is not None:
-                log_writer.add_scalar("train_centroids_diff", np.mean(centroids_diff), epoch_1000x)
-            del view1s, view2s, pred1s, pred2s
-    
 
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
@@ -422,45 +359,8 @@ def test_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                                        symmetrize_batch=False,
                                        use_amp=bool(args.amp))
         loss, loss_details = result["loss"]  # criterion returns two values
-        # print(f"test - loss: {loss}")
-        # print(f"test - loss_detail: {loss_details}")
         loss_value = sum(loss_details.values())
-        metric_logger.update(loss=float(loss_value))
-        # loss_value, loss_details = loss_tuple  # criterion returns two values
         metric_logger.update(loss=float(loss_value), **loss_details)
-        os.makedirs(os.path.join(args.output_dir, f"{prefix}"), exist_ok=True)
-        os.makedirs(os.path.join(args.output_dir, f"{prefix}_sorted"), exist_ok=True)
-
-        if log_writer is not None:
-            losses.append(float(loss_value))
-            if data_iter_step == 0:
-                view1s = dict()
-                view2s = dict()
-                pred1s = dict()
-                pred2s = dict()
-            if data_iter_step <= 127:
-                view1s = aggregate(view1s, result["view1"])
-                view2s = aggregate(view2s, result["view2"])
-                pred1s = aggregate(pred1s, result["pred1"])
-                pred2s = aggregate(pred2s, result["pred2"])
-            if data_iter_step == 127:
-                # centroid diff measures the distance between centroids of the predicted points and gt points
-                viz, centroids_diff = get_viz(view1s, view2s, pred1s, pred2s, losses=losses, sort=False)
-                sorted_viz, _ = get_viz(view1s, view2s, pred1s, pred2s, losses=losses, sort=True)
-                get_viz_html(viz, save_path=join(args.output_dir, f"{prefix}", f"{prefix}_{epoch}.html"))
-                get_viz_html(sorted_viz, save_path=join(args.output_dir, f"{prefix}_sorted", f"{prefix}_sorted_{epoch}.html"))
-                log_writer.add_scalar(f"{prefix}_centroids_diff", np.mean(centroids_diff), 1000*epoch)
-                del view1s, view2s, pred1s, pred2s
-            
-    if log_writer is not None:
-        cdf = get_cdf(losses, epoch)
-        log_writer.add_image("percent of loss under x", cdf, epoch)
-        log_writer.add_scalar("losses greater than 0.01", losses_greater_than_x(losses, 0.01), 1000*epoch)
-        log_writer.add_scalar("losses greater than 0.05", losses_greater_than_x(losses, 0.05), 1000*epoch)
-        log_writer.add_scalar("losses greater than 0.1", losses_greater_than_x(losses, 0.1), 1000*epoch)
-        log_writer.add_scalar("losses greater than 0.15", losses_greater_than_x(losses, 0.15), 1000*epoch)
-        log_writer.add_scalar("losses greater than 0.2", losses_greater_than_x(losses, 0.2), 1000*epoch)
-        log_writer.add_scalar("losses greater than 0.25", losses_greater_than_x(losses, 0.25), 1000*epoch)
         
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()

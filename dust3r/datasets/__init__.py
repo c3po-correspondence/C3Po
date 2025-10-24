@@ -1,65 +1,48 @@
-# Copyright (C) 2024-present Naver Corporation. All rights reserved.
-# Licensed under CC BY-NC-SA 4.0 (non-commercial use only).
 import numpy as np
 import torch
-
-from .arkitscenes import ARKitScenes  # noqa
-from .base.batched_sampler import BatchedRandomSampler  # noqa
-from .blendedmvs import BlendedMVS  # noqa
-from .co3d import Co3d  # noqa
-from .habitat import Habitat  # noqa
-from .megadepth import MegaDepth  # noqa
-from .megascenes_augmented import MegaScenesAugmented
-from .scannetpp import ScanNetpp  # noqa
-from .staticthings3d import StaticThings3D  # noqa
-from .utils.transforms import *
-from .waymo import Waymo  # noqa
-from .wildrgbd import WildRGBD  # noqa
-
 from dust3r.datasets.utils.transforms import *
 
+from .c3 import C3  # noqa
 
-def collate_fn(batch):  # batch:[(view1, view2) * batch_size]
-    # print(view1["img"].size(), view1["plan_xys"].shape)  # Should be torch.Size([8, 3, 224, 224]) torch.Size([8, 733, 2])   
-    max_xys_len = max(item[0]["xys"].shape[0] for item in batch)
-    # print(f"max_xys_len: {max_xys_len}")
+
+def collate_fn(batch):  
+    max_corrs_len = max(item[0]["corrs"].shape[0] for item in batch)
+
+    view1_imgs, view2_imgs = [], []
+    view1_corrs, view2_corrs = [], []
+    view1_instances, view2_instances = [], []
     
-    view1_img_batched = []
-    view2_img_batched = [] 
-    view1_xys_batched = []
-    view2_xys_batched = []
-    view1_instances = []
-    view2_instances = []
-    # view1_paths = []
-    # view2_paths = []
-    for view1, view2 in batch:  #(['img', 'plan_xys', 'image_xys'])
-        view1_img_batched.append(torch.squeeze(torch.Tensor(view1["img"]), 0))
-        view2_img_batched.append(torch.squeeze(torch.Tensor(view2["img"]), 0))
+    for view1, view2 in batch: 
+        # view1_imgs.append(torch.squeeze(torch.Tensor(view1["img"]), 0))
+        # view2_imgs.append(torch.squeeze(torch.Tensor(view2["img"]), 0))
+        view1_imgs.append(torch.as_tensor(view1["img"]).squeeze(0))
+        view2_imgs.append(torch.as_tensor(view2["img"]).squeeze(0))
         view1_instances.append(view1["instance"])
         view2_instances.append(view2["instance"])
 
-        view1_xys_batched.append(torch.from_numpy(np.pad(view1["xys"], ((0, max_xys_len - view1["xys"].shape[0]), (0, 0)), mode="constant", constant_values=0)))
-        view2_xys_batched.append(torch.from_numpy(np.pad(view2["xys"], ((0, max_xys_len - view2["xys"].shape[0]), (0, 0)), mode="constant", constant_values=0)))
-        # view1_paths.append(view1["path"])
-        # view2_paths.append(view2["path"])
+        pad_len1 = max_corrs_len - view1["corrs"].shape[0]
+        pad_len2 = max_corrs_len - view2["corrs"].shape[0]
 
-    view1_img_batched = torch.stack(view1_img_batched)
-    view2_img_batched = torch.stack(view2_img_batched)
-    view1_xys_batched = torch.stack(view1_xys_batched)
-    view2_xys_batched = torch.stack(view2_xys_batched)
-    final_view1 = dict(
-        img=view1_img_batched, 
-        xys=view1_xys_batched,
+        view1_corrs.append(torch.from_numpy(np.pad(view1["corrs"], ((0, pad_len1), (0, 0)), mode="constant", constant_values=0)))
+        view2_corrs.append(torch.from_numpy(np.pad(view2["corrs"], ((0, pad_len2), (0, 0)), mode="constant", constant_values=0)))
+
+    view1_imgs = torch.stack(view1_imgs)
+    view2_imgs = torch.stack(view2_imgs)
+    view1_corrs = torch.stack(view1_corrs)
+    view2_corrs = torch.stack(view2_corrs)
+
+    view1_batch = dict(
+        img=view1_imgs, 
+        corrs=view1_corrs,
         instance=view1_instances,
-        # path=view1_paths
     )
-    final_view2 = dict(       
-        img=view2_img_batched,
-        xys=view2_xys_batched,
+    view2_batch = dict(
+        img=view2_imgs,
+        corrs=view2_corrs,
         instance=view2_instances,
-        # path=view2_paths
     )
-    return final_view1, final_view2
+
+    return view1_batch, view2_batch
 
 def get_data_loader(dataset, batch_size, num_workers=8, shuffle=True, drop_last=True, pin_mem=True, test=None):
     import torch

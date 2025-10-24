@@ -30,13 +30,10 @@ def get_rgbs(pred, image_size):
         rgbs.append((r, 0, b))
     return rgbs
 
-def get_nonzero_xys(xys):  #xys:(N,2)
-    mask = torch.all(xys == 0, dim=1)
+def get_nonzero_corrs(corrs): 
+    mask = torch.all(corrs == 0, dim=1)
     M = torch.sum(mask.flip(0)).item()
-    if M != 0:
-        return xys[:-M]
-    else:
-        return xys
+    return corrs[:-M] if M != 0 else corrs
 
 def get_viz(view1, view2, pred1, pred2, losses=None, sort=False):
     def gen_plot(view1, view2, pred1, pred2, losses=None):
@@ -140,59 +137,3 @@ def get_viz(view1, view2, pred1, pred2, losses=None, sort=False):
     return viz, centroids_diff
 
 
-def get_cdf(values, epoch):
-    """
-    Plot a graph where the y-axis represents the percentage of values in the list
-    that are less than the x value.
-    
-    Args:
-        values: List of floating point numbers
-    """
-    # Sort the values
-    sorted_values = np.sort(values)
-    
-    # Calculate the cumulative percentages (0 to 100)
-    percentages = np.arange(1, len(sorted_values) + 1) / len(sorted_values) * 100
-    
-    # Create the plot
-    plt.figure(figsize=(12, 8))
-    plt.plot(sorted_values, percentages, '-o', markersize=4)
-    plt.grid(True, linestyle='--', alpha=0.7)
-    plt.xlabel('Loss')
-    plt.ylabel('Percentage of values < x')
-    plt.title(f'Epoch {epoch}')
-    
-    # Add a horizontal line at 50% for the median
-    plt.axhline(y=50, color='r', linestyle='--', alpha=0.5, label='50% (median)')
-    
-    # Add a few percentage annotations
-    plt.axhline(y=25, color='gray', linestyle='--', alpha=0.5, label='25%')
-    plt.axhline(y=75, color='gray', linestyle='--', alpha=0.5, label='75%')
-    
-    plt.legend()
-    plt.tight_layout()
-    
-    buf = BytesIO()
-    plt.savefig(buf, format='png')
-    buf.seek(0)
-
-    image = PIL.Image.open(buf)
-    image_tensor = torch.tensor(np.array(image).transpose(2, 0, 1))  # Convert to CHW format
-    return image_tensor
-
-
-def get_viz_html(fig, save_path):
-    buf = BytesIO()
-    fig.savefig(buf, format='png')
-    buf.seek(0)
-
-    img_str = base64.b64encode(buf.read()).decode('utf-8')
-
-    html_str = f'<img src="data:image/png;base64,{img_str}"/>'
-    with open(save_path, 'w', encoding='utf-8') as f:
-        f.write(html_str)
-        print(f"HTML saved to {os.path.abspath(save_path)}")
-
-
-def get_centroid(points):
-    return np.mean(points, axis=0)
