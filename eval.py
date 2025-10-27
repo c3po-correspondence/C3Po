@@ -18,10 +18,12 @@ warnings.simplefilter("ignore", Image.DecompressionBombWarning)
 
 resolution = (512, 512)
 
-def CoordNorm(array, image_dim):
+def CoordNorm1(array, image_dim):
+    # Normalize coordinates from [0, image_dim - 1] to [-1, 1]
     return torch.tensor(2 * (array / (image_dim - 1)) - 1, dtype=torch.float)
 
-def CoordDenorm(tensor):
+def CoordNorm2(tensor):
+    # Normalize coordinates from [-1, 1] to [0, 1]
     return (tensor + 1) / 2.0
 
 def correspondence_rmse(pred, gt, per_image=False):
@@ -32,8 +34,9 @@ def correspondence_rmse(pred, gt, per_image=False):
 def process(view1, view2, pred1, pred2):
     plan_corrs = view1["corrs"][0]            
     photo_corrs = view2["corrs"][0]    
-        
-    gt = CoordNorm(plan_corrs, resolution[0])
+    
+    # Normalize ground truth coordinates to [-1, 1]
+    gt = CoordNorm1(plan_corrs, resolution[0])                
 
     pred_xyz = pred2["pts3d_in_other_view"]  
     pred_x = pred_xyz[..., 0:1] 
@@ -102,9 +105,10 @@ for i, batch in tqdm(enumerate(dataloader)):
         gts.append(gt.cpu().numpy())
 
 # === Compute RMSE ===
+# We report the RMSE in normalized coordinate space [0, 1], so we have to normalize from [-1, 1] to [0, 1]
 rmse = correspondence_rmse(
-    CoordDenorm(torch.tensor(np.concatenate(preds))), 
-    CoordDenorm(torch.tensor(np.concatenate(gts)))
+    CoordNorm2(torch.tensor(np.concatenate(preds))),
+    CoordNorm2(torch.tensor(np.concatenate(gts)))
 )
 print(f"Correspondence RMSE: {rmse.item():.4f}")
 
