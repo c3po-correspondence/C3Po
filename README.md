@@ -2,7 +2,7 @@
 # C3Po: Cross-View Cross-Modality Correspondence by Pointmap Prediction
 ### NeurIPS 2025 [Datasets and Benchmarks Track]
 
-[Project Website](https://c3po-correspondence.github.io/) | [Paper (coming soon)](https://c3po-correspondence.github.io/) | [Dataset](https://huggingface.co/datasets/kwhuang/C3)
+[Project Website](https://c3po-correspondence.github.io/) | [Paper](https://arxiv.org/pdf/2511.18559) | [Dataset](https://huggingface.co/datasets/kwhuang/C3)
 
 ## Contents
 * [Install](#install)
