@@ -1,4 +1,3 @@
-import tqdm
 import torch
 from dust3r.utils.device import to_cpu, collate_with_cat
 from dust3r.utils.misc import invalid_to_nans
@@ -7,12 +6,6 @@ from dust3r.utils.geometry import depthmap_to_pts3d, geotrf
 import numpy as np
 from dust3r.datasets import get_data_loader
 from dust3r.utils.image import load_images
-import PIL
-import matplotlib
-import os
-import io
-from io import BytesIO
-import base64
 
 def _interleave_imgs(img1, img2):
     res = {}
@@ -49,38 +42,11 @@ def loss_of_one_batch(batch, model, criterion, device, symmetrize_batch=False, u
 
         # loss is supposed to be symmetric
         with torch.cuda.amp.autocast(enabled=False):
-
             loss = criterion(view1, view2, pred1, pred2) if criterion is not None else None
-            # view1=view2: dict("img": Tensor(BCHW=(4,3,244,244)), "true_shape": Tensor(4,2), "instance": list(4), "plan_xy": Tensor(4,2), "image_xy": Tensor(4,2))
-            # pred1: dict("pts3d": Tensor(BHWC=(4,224,224,3)), "conf": Tensor(BHW=(4,224,224)))
-            # pred2: dict("pts3d_in_other_view": Tensor(BHWC), "conf": Tensor(BHW))
 
     result = dict(view1=view1, view2=view2, pred1=pred1, pred2=pred2, loss=loss)
     return result[ret] if ret else result
 
-def losses_greater_than_x(losses, threshold):
-    if isinstance(losses, list):
-        losses = np.array(losses)
-    return losses[losses >= threshold].sum()/len(losses)
-
-# @torch.no_grad()
-# def inference(pairs, model, device, batch_size=8, verbose=True):
-#     if verbose:
-#         print(f'>> Inference with model on {len(pairs)} image pairs')
-#     result = []
-
-#     # first, check if all images have the same size
-#     multiple_shapes = not (check_if_same_size(pairs))
-#     if multiple_shapes:  # force bs=1
-#         batch_size = 1
-
-#     for i in tqdm.trange(0, len(pairs), batch_size, disable=not verbose):
-#         res = loss_of_one_batch(collate_with_cat(pairs[i:i + batch_size]), model, None, device)
-#         result.append(to_cpu(res))
-
-#     result = collate_with_cat(result, lists=multiple_shapes)
-
-#     return result
 
 def build_dataset(dataset, batch_size, num_workers, test=False):
     split = ['Train', 'Train (heldout)/Test'][test]
@@ -98,17 +64,12 @@ def build_dataset(dataset, batch_size, num_workers, test=False):
     print(f"{split} dataset length: {len(loader)}")
     return loader
 
+
 def make_batches(plan_path, photo_path, corr_path, batch_size):
         plan_corrs, photo_corrs = np.load(corr_path)
         pair = load_images((plan_path, photo_path), size=512, plan_corrs=plan_corrs, photo_corrs=photo_corrs, augment=False)  
         batches = build_dataset([pair], batch_size, num_workers=4, test=True)
         return batches
-
-
-def check_if_same_size(pairs):
-    shapes1 = [img1['img'].shape[-2:] for img1, img2 in pairs]
-    shapes2 = [img2['img'].shape[-2:] for img1, img2 in pairs]
-    return all(shapes1[0] == s for s in shapes1) and all(shapes2[0] == s for s in shapes2)
 
 
 def get_pred_pts3d(gt, pred, use_pose=False):

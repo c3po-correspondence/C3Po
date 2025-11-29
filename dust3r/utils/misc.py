@@ -5,6 +5,7 @@
 # utilitary functions for DUSt3R
 # --------------------------------------------------------
 import torch
+import numpy as np
 
 
 def fill_default_args(kwargs, func):
@@ -119,3 +120,23 @@ def invalid_to_zeros(arr, valid_mask, ndim=999):
     if arr.ndim > ndim:
         arr = arr.flatten(-2 - (arr.ndim - ndim), -2)
     return arr, nnz
+
+
+def ReverseImgNorm(x):
+    x = x * 0.5 + 0.5
+    x *= 255.0
+    if isinstance(x, np.ndarray):
+        x = x.clip(0, 255).astype(np.uint8)
+    else:
+        x = torch.clamp(x, 0, 255).to(torch.uint8)
+    return x
+
+
+def get_nonzero_corrs(corrs): 
+    mask = torch.all(corrs == 0, dim=1)
+    M = torch.sum(mask.flip(0)).item()
+    return corrs[:-M] if M != 0 else corrs
+
+
+def ReverseCoordNorm(np_array, size):
+    return (np_array + 1) * (size - 1) / 2
