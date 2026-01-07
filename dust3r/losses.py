@@ -125,7 +125,7 @@ class MultiLoss (nn.Module):
     
 
 def CoordNorm(array, image_dim):
-    return torch.tensor(array, dtype=torch.float) / (image_dim - 1)
+    return torch.tensor(2 * (array / (image_dim - 1)) - 1, dtype=torch.float)
 
 def get_last_nonzero_indices(corrs):
         last_nonzero_indices = []
