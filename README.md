@@ -1,8 +1,8 @@
 
 # C3Po: Cross-View Cross-Modality Correspondence by Pointmap Prediction
-### NeurIPS 2025 [Datasets and Benchmarks Track]
+### NeurIPS 2025 Datasets and Benchmarks Track
 
-[Project Website](https://c3po-correspondence.github.io/) | [Paper](https://arxiv.org/pdf/2511.18559) | [Dataset](https://huggingface.co/datasets/kwhuang/C3)
+[Project Website](https://c3po-correspondence.github.io/) | [arXiv](https://arxiv.org/pdf/2511.18559) | [Dataset](https://huggingface.co/datasets/kwhuang/C3)
 
 ## Contents
 * [Install](#install)
@@ -50,22 +50,22 @@ The full dataset is available on [`HuggingFace`](https://huggingface.co/datasets
 ## Checkpoint
 
 Pre-trained model weights:
-[`ckpt.pth`](https://drive.google.com/drive/folders/1OoJrtdfjYZhzvlmF9eKpptyWPbXvjofh?usp=sharing)
+[`C3Po.pth`](https://drive.google.com/drive/folders/1OoJrtdfjYZhzvlmF9eKpptyWPbXvjofh?usp=sharing)
 
-To run the demo, download the model checkpoint and save the weights in `demo/`.
+To run the demo, download the model checkpoint and save the weights in `checkpoints/`.
 
 ## Demo
 
-After saving the model weights in `demo/`, run `demo.ipynb` to visualize plan-photo pairs, predicted correspondences, and ground truth correspondences. 
+After saving the model weights in `checkpoints/`, run `demo.ipynb` to visualize plan-photo pairs, predicted correspondences, and ground truth correspondences. 
 
 
 ## Training
 Download [DUSt3R_ViTLarge_BaseDecoder_512_dpt.pth](https://github.com/naver/dust3r?tab=readme-ov-file#checkpoints).
 ```bash
 torchrun --nproc_per_node 8 train.py \
---train_dataset="C3(data_dir='C3/geometric/', image_dir='C3/visual/', split='train', resolution=[(512, 512)], augmentation_factor=3)" \
---val_dataset="C3(data_dir='C3/geometric/', image_dir='C3/visual/', split='val', resolution=[(512, 512)], augmentation_factor=1)" \
---test_dataset="C3(data_dir ='C3/geometric/', image_dir='C3/visual/', split='test', resolution=[(512, 512)], augmentation_factor=1)" \
+--train_dataset="C3(image_pairs_dir='C3/image_pairs', geometric_dir='C3/geometric', visual_dir='C3/visual', split='train', resolution=[(512, 512)], augmentation_factor=3)" \
+--val_dataset="C3(image_pairs_dir='C3/image_pairs', geometric_dir='C3/geometric', visual_dir='C3/visual', split='val', resolution=[(512, 512)], augmentation_factor=1)" \
+--test_dataset="C3(image_pairs_dir='C3/image_pairs', geometric_dir='C3/geometric', visual_dir='C3/visual', split='test', resolution=[(512, 512)], augmentation_factor=1)" \
 --train_criterion="ConfLoss(CorrespondenceLoss(L21), alpha=0.2)" \
 --test_criterion="CorrespondenceLoss(L21)" \
 --model="AsymmetricCroCo3DStereo(pos_embed='RoPE100', patch_embed_cls='ManyAR_PatchEmbed', img_size=(512, 512), head_type='dpt', output_mode='pts3d', depth_mode=('exp', -inf, inf), conf_mode=('exp', 1, inf), enc_embed_dim=1024, enc_depth=24, enc_num_heads=16, dec_embed_dim=768, dec_depth=12, dec_num_heads=12)" \
@@ -75,13 +75,19 @@ torchrun --nproc_per_node 8 train.py \
 --output_dir="checkpoints/c3po"
 ```
 
-
 ## Evaluation
-Evaluate correspondence RMSE by running
+Use the command below to evaluate correspondence accuracy. To additionally evaluate camera pose estimation performance, include the `--eval-camera-poses` flag.
 ```bash
-python eval.py
+python eval.py \
+    --weights "./checkpoints/C3Po.pth" \
+    --image-pairs-dir "C3/image_pairs" \
+    --geometric-dir "C3/geometric" \
+    --visual-dir "C3/visual" \
+    --split test \
+    --batch-size 1 \
+    # --eval-camera-poses \ 
+    --output "./results.json"
 ```
-
 
 ## Citation
 ```

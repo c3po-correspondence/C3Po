@@ -47,7 +47,7 @@ def get_args_parser():
 
     # dataset
     parser.add_argument('--train_dataset', required=True, type=str, help="training set")
-    parser.add_argument('--val_dataset', default='[None]', type=str, help="validation/training heldout set")
+    parser.add_argument('--val_dataset', default='[None]', type=str, help="validationset")
     parser.add_argument('--test_dataset', default='[None]', type=str, help="testing set")
 
 

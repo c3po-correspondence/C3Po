@@ -9,16 +9,17 @@ from dust3r.datasets.utils.transforms import *
 
 
 class C3(BaseStereoViewDataset):
-    def __init__(self, *args, data_dir, image_dir, augmentation_factor, **kwargs):
-        self.data_dir = data_dir
-        self.image_dir = image_dir
+    def __init__(self, *args, image_pairs_dir, geometric_dir, visual_dir, augmentation_factor, **kwargs):
+        self.image_pairs_dir = image_pairs_dir
+        self.geometric_dir = geometric_dir
+        self.visual_dir = visual_dir
         super().__init__(*args, **kwargs)
         self.loaded_data = self._load_data()
         self.augmentation_factor = augmentation_factor
         
     def _load_data(self):
         print("Loading image pairs...")
-        with open(join(self.data_dir, f"{self.split}", "image_pairs.csv"), "r") as f:
+        with open(join(self.image_pairs_dir, f"{self.split}", "image_pairs.csv"), "r") as f:
             self.image_pairs = []            
             reader = csv.reader(f)
             next(reader)  # skip header
@@ -36,9 +37,9 @@ class C3(BaseStereoViewDataset):
     def __getitem__(self, idx):
         idx = idx[0] if self.split == "train" else idx
         i, landmark, plan_name, photo_name = self.image_pairs[idx % len(self.image_pairs)]
-        plan_path = join(self.image_dir, landmark, plan_name)
-        photo_path = join(self.image_dir,  landmark, photo_name)
-        corrs_path = join(self.data_dir, f"{self.split}", "correspondences", f"{int(i) // 1000}", f"{int(i):06}.npy")
+        plan_path = join(self.visual_dir, landmark, plan_name)
+        photo_path = join(self.visual_dir,  landmark, photo_name)
+        corrs_path = join(self.geometric_dir, f"{self.split}", "correspondences", f"{int(i) // 1000}", f"{int(i):06}.npy")
         corrs = np.load(corrs_path)
         size = self._resolutions[0][0]
 

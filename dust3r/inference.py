@@ -49,7 +49,7 @@ def loss_of_one_batch(batch, model, criterion, device, symmetrize_batch=False, u
 
 
 def build_dataset(dataset, batch_size, num_workers, test=False):
-    split = ['Train', 'Train (heldout)/Test'][test]
+    split = ['Train', 'Val/Test'][test]
     print(f'Building {split} Data loader for dataset')
     loader = get_data_loader(
         dataset,
