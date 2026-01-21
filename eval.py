@@ -524,7 +524,7 @@ def print_results(results: dict) -> None:
     print(f"  Rotation Acc @20°:        {results['rotation_acc_20deg']*100:.1f}")
     print(f"  Rotation Acc @30°:        {results['rotation_acc_30deg']*100:.1f}")
     print()
-    print(f"  Translation Acc @0.05:     {results['translation_acc_0.05']*100:.1f}")
+    print(f"  Translation Acc @0.05:    {results['translation_acc_0.05']*100:.1f}")
     print(f"  Translation Acc @0.1:     {results['translation_acc_0.1']*100:.1f}")
     print(f"  Translation Acc @0.2:     {results['translation_acc_0.2']*100:.1f}")
     print()

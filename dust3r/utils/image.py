@@ -142,10 +142,15 @@ def load_image(path, corrs, is_photo):
     # Handle GIFs by selecting the middle frame
     if path.lower().endswith(".gif"):
         img.seek(img.n_frames // 2)
-    else:
+
+    # Only apply EXIF orientation correction for photos and photo correspondences
+    if is_photo:
         img_orientation = get_exif_orientation(img)
         corrs = transform_correspondences(corrs, img_orientation, img.size[0], img.size[1])
-    img = exif_transpose(img).convert('RGB')
+        img = exif_transpose(img)
+
+    img = img.convert("RGB")
+
     return img, corrs
 
 def load_images(pair, size, plan_corrs, photo_corrs, augment, verbose=False):
