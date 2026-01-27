@@ -28,16 +28,11 @@ conda create -n c3po python=3.11 cmake=3.14.0
 conda activate c3po 
 pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu121  # use the correct version for you
 pip install -r requirements.txt
-# Optional: you can also install additional packages to:
-# - add support for HEIC images
-# - add pyrender, used to render depthmap in some datasets preprocessing
-# - add required packages for visloc.py
-pip install -r requirements_optional.txt
 ```
 
-3. Optional, compile the cuda kernels for RoPE (as in CroCo v2).
+3. Compile the CUDA kernels for RoPE.
 ```bash
-# DUST3R relies on RoPE positional embeddings for which you can compile some cuda kernels for faster runtime.
+# C3Po relies on RoPE positional embeddings for which you can compile some CUDA kernels for faster runtime
 cd croco/models/curope/
 python setup.py build_ext --inplace
 cd ../../../
@@ -50,7 +45,7 @@ The full dataset is available on [`HuggingFace`](https://huggingface.co/datasets
 ## Checkpoint
 
 Pre-trained model weights:
-[`C3Po.pth`](https://drive.google.com/drive/folders/1OoJrtdfjYZhzvlmF9eKpptyWPbXvjofh?usp=sharing)
+[`C3Po.pth`](https://drive.google.com/file/d/1RhfDKI8Ztwjb-1R0XQpLMqs0Xs4Ax52B/view)
 
 To run the demo, download the model checkpoint and save the weights in `checkpoints/`.
 
@@ -60,7 +55,8 @@ After saving the model weights in `checkpoints/`, run `demo.ipynb` to visualize 
 
 
 ## Training
-Download [DUSt3R_ViTLarge_BaseDecoder_512_dpt.pth](https://github.com/naver/dust3r?tab=readme-ov-file#checkpoints).
+1. Download [DUSt3R_ViTLarge_BaseDecoder_512_dpt.pth](https://github.com/naver/dust3r?tab=readme-ov-file#checkpoints) to `checkpoints/`.
+2. Run the following command to start training.
 ```bash
 torchrun --nproc_per_node 8 train.py \
 --train_dataset="C3(image_pairs_dir='C3/image_pairs', geometric_dir='C3/geometric', visual_dir='C3/visual', split='train', resolution=[(512, 512)], augmentation_factor=3)" \
